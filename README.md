@@ -9,7 +9,7 @@ a timestamp, path, title, referrer, country, screen size and visit id. GoatCount
 `/api/v0/count` accepts all of those *and* a backdated `created_at`, so this is
 a real backfill and not a daily-totals approximation.
 
-Single file, standard library only, Python 3.9+.
+Single file, standard library only. Tested on Python 3.13 and 3.14.
 
 ```
 python3 umami2goatcounter.py export.zip --list
@@ -120,6 +120,18 @@ Running twice imports twice — GoatCounter has no key to deduplicate on. Use
 `--dry-run` first, and `--since`/`--until` to resume or to avoid overlapping
 with data your live tracking script has already collected.
 
+For the same reason, a batch that fails after retries stops the run and prints
+the exact flag to resume with, rather than leaving you to choose between
+importing nothing and importing some rows twice:
+
+```
+failed on batch 63/125 after 31000 hits: HTTP 502: ...
+resume with:  --since '2026-07-18T09:12:44Z'
+```
+
+Rate-limit responses and transient connection errors are retried with backoff
+before it gives up.
+
 ## Options
 
 ```
@@ -127,14 +139,18 @@ with data your live tracking script has already collected.
 --token TOKEN           or $GOATCOUNTER_API_KEY
 --hostname HOST         only import this hostname (repeatable)
 --exclude-hostname HOST skip this hostname (repeatable) — e.g. a dev domain
---since / --until       UTC bounds, compared against the raw created_at text
+--since / --until       UTC bounds, YYYY-MM-DD or YYYY-MM-DD HH:MM:SS
 --user-agent none|synth default none
 --tz-offset HOURS       if your export is not UTC
 --batch-size N          default 500
 --rate N                requests/minute, default 25; 0 disables pacing
 --list                  list hostnames in the export and exit
 --dry-run               summarise and show a sample payload, send nothing
+--version
 ```
+
+Rows that cannot be mapped — an unparseable or future timestamp, a missing
+path — are counted and reported by reason rather than dropped silently.
 
 `--list` is worth running first. Umami exports are per-website but still tend to
 contain stray hostnames — a dev subdomain, or a bare IP — that you do not want
